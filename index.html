@@ -32,6 +32,20 @@
   --font-px:"Press Start 2P",var(--font-cn);
 }
 
+/* ===== 强制隐藏 Netlify 悬浮球的终极 CSS ===== */
+iframe[src*="netlify"],
+netlify-badge,
+#netlify-badge,
+div[style*="netlify"],
+a[href*="netlify.com"],
+[data-netlify-badge] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+}
+
 *,*::before,*::after{box-sizing:border-box}
 html{height:100%;-webkit-text-size-adjust:100%}
 body{
@@ -770,14 +784,16 @@ select.inp{
 (function () {
   'use strict';
 
-  /* ===== 强行清理 Netlify 右下角悬浮球 ===== */
-  function removeNetlifyBadge() {
-    // 1. 尝试寻找常见的 id 或 iframe
+  /* ===== 强行清理 Netlify 右下角悬浮球（MutationObserver 监听） ===== */
+  function killNetlifyBadge() {
+    // 尝试通过 ID 或特定属性查找
     var badge = document.getElementById('netlify-badge') || 
                 document.querySelector('iframe[src*="netlify"]') ||
-                document.querySelector('a[href*="netlify.com"]');
+                document.querySelector('a[href*="netlify.com"]') ||
+                document.querySelector('[data-netlify-badge]');
     
     if (badge) {
+      // 如果它在一个独立的容器里（通常是 div 或 aside），把容器也删了
       if (badge.parentNode && (badge.parentNode.tagName === 'DIV' || badge.parentNode.tagName === 'ASIDE') && badge.parentNode.children.length === 1) {
         badge.parentNode.remove();
       } else {
@@ -785,12 +801,11 @@ select.inp{
       }
     }
 
-    // 2. 遍历所有 a 标签，找出包含 "Netlify" 的推广链接
+    // 兜底：遍历所有 a 标签
     var links = document.querySelectorAll('a');
     for (var i = 0; i < links.length; i++) {
       if (links[i].innerText.indexOf('Netlify') !== -1 || (links[i].href && links[i].href.indexOf('netlify.com') !== -1)) {
         var target = links[i];
-        // 很多情况下悬浮球有一个外层容器，一起删掉
         if (target.parentNode && (target.parentNode.tagName === 'DIV' || target.parentNode.tagName === 'ASIDE') && target.parentNode.children.length === 1) {
           target = target.parentNode;
         }
@@ -799,15 +814,21 @@ select.inp{
     }
   }
 
-  // 立即执行一次
-  removeNetlifyBadge();
-  // 考虑到悬浮球可能是异步注入的，连续监控 10 秒，每 500 毫秒清理一次
-  var cleanCount = 0;
-  var cleanTimer = setInterval(function() {
-    removeNetlifyBadge();
-    cleanCount++;
-    if (cleanCount > 20) clearInterval(cleanTimer);
-  }, 500);
+  // 页面加载时先执行一次
+  killNetlifyBadge();
+
+  // 使用 MutationObserver 实时监控 DOM 变化，一旦发现悬浮球注入立刻删除
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function(mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        if (mutations[i].addedNodes.length > 0) {
+          killNetlifyBadge();
+        }
+      }
+    });
+    // 开始监听 body 下的所有节点变化
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  }
 
 
   /* ===== 管理员账号 ===== */
