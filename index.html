@@ -890,23 +890,45 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     var apiBase = 'https://api.github.com/repos/' + encodeURIComponent(GH.owner) + '/' + encodeURIComponent(GH.repo) + '/contents/' + encodeURIComponent(GH.path).replace(/%2F/g, '/');
     var headers = { 'Authorization': 'Bearer ' + GH.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
     
-    return fetch(apiBase + '?ref=' + encodeURIComponent(GH.branch), { headers: headers, cache: 'no-store' })
+    // 封装 fetch 请求并处理网络不通的情况
+    var doFetch = function(url, opts) {
+      return fetch(url, opts).catch(function(err) {
+        if (err.name === 'TypeError' && /fetch/i.test(err.message)) {
+          throw new Error('网络连接失败！可能当前网络无法访问 GitHub API，请尝试切换网络（如使用手机流量）或开启代理。');
+        }
+        throw err;
+      });
+    };
+
+    return doFetch(apiBase + '?ref=' + encodeURIComponent(GH.branch) + '&t=' + Date.now(), { headers: headers, cache: 'no-store' })
       .then(function (r) {
         if (r.status === 404) return null;
-        if (!r.ok) return r.json().then(function (e) { throw new Error('读取失败(' + r.status + ')：' + (e.message || '请检查 Token 和仓库名')); });
+        if (!r.ok) {
+          return r.json().then(function (e) { throw new Error('读取失败(' + r.status + ')：' + (e.message || '请检查 Token 权限')); })
+            .catch(function() { throw new Error('读取失败(' + r.status + ')：请检查 Token 和仓库名'); });
+        }
         return r.json();
       }).then(function (existing) {
         var body = { message: '更新像素食堂菜单 ' + new Date().toLocaleString('zh-CN'), content: base64EncodeUnicode(JSON.stringify(data, null, 2)), branch: GH.branch };
         if (existing && existing.sha) body.sha = existing.sha;
-        return fetch(apiBase, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: JSON.stringify(body) });
+        return doFetch(apiBase, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: JSON.stringify(body) });
       }).then(function (r) {
-        if (!r.ok) return r.json().then(function (e) { throw new Error('保存失败(' + r.status + ')：' + (e.message || '权限不足')); });
-        return r.json();
-      }).catch(function (err) {
-        if (err.name === 'TypeError' && err.message.indexOf('fetch') !== -1) {
-          throw new Error('网络连接失败，可能是网络无法访问 GitHub API，请尝试切换网络。');
+        if (!r.ok) {
+          return r.json().then(function (e) { throw new Error('保存失败(' + r.status + ')：' + (e.message || '权限不足')); });
         }
-        throw err;
+        return r.json();
+      });
+  }
+
+  function testGHConnection() {
+    toast('正在测试连接...');
+    fetch('https://api.github.com/zen', { cache: 'no-store' })
+      .then(function(r) { return r.text(); })
+      .then(function(t) { toast('网络通畅：' + t); })
+      .catch(function(e) { 
+        toast('网络不通！无法连接 GitHub API');
+        var errDiv = document.getElementById('ghTestResult');
+        if(errDiv) { errDiv.style.display = 'block'; errDiv.textContent = '网络不通！当前网络无法访问 api.github.com，请尝试更换网络或开启代理。'; }
       });
   }
 
@@ -918,7 +940,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     draft.dishes.forEach(function (d) { if (!draft.cats.some(function (c) { return c.id === d.cat; })) d.cat = fallback; });
 
     db = clone(draft); 
-    db.auth = clone(currentAuth); // 只保存密码到云端
+    db.auth = clone(currentAuth); 
     
     dirty = false; renderEdit(); refreshMenu();
     
@@ -950,13 +972,17 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     openLayer('<div class="pxwin dlg" role="dialog" aria-modal="true" aria-label="云端同步设置"><div class="win-bar">' +
       '<div><div class="win-title">CLOUD SYNC</div><div class="win-sub">云端同步设置</div></div><button class="win-x" data-act="close" aria-label="关闭">' + xSVG + '</button></div>' +
       '<div class="dlg-body">' + (msg ? '<div class="auth-err">' + esc(msg) + '</div>' : '') +
+      '<div id="ghTestResult" class="auth-err" style="display:none; margin-bottom:8px;"></div>' +
       '<div class="field"><label>GitHub Token（Contents 读写权限）</label><input class="inp" id="ghToken" type="password" value="' + esc(GH.token) + '" placeholder="github_pat_xxx" autocomplete="off"></div>' +
       '<div class="field"><label>用户名 / 组织</label><input class="inp" id="ghOwner" value="' + esc(GH.owner) + '" placeholder="your-name" autocomplete="off"></div>' +
       '<div class="field"><label>仓库名</label><input class="inp" id="ghRepo" value="' + esc(GH.repo) + '" placeholder="pixel-diner" autocomplete="off"></div>' +
       '<div class="field"><label>分支</label><input class="inp" id="ghBranch" value="' + esc(GH.branch) + '" placeholder="main" autocomplete="off"></div>' +
       '<div class="field"><label>数据文件路径</label><input class="inp" id="ghPath" value="' + esc(GH.path) + '" placeholder="menu.json" autocomplete="off"></div>' +
-      '<div class="dlg-actions"><button class="btn ghost" data-act="close">取消</button><button class="btn" data-act="save-gh">保存</button></div>' +
-      '<div class="win-note" style="color:#c92a2a;">如果提示网络失败，请检查当前网络是否能访问 GitHub API，或复制配置项检查是否有空格。</div></div></div>');
+      '<div class="win-actions" style="grid-template-columns:1fr 1fr; margin-top:4px;">' +
+        '<button class="btn ghost" data-act="test-gh">测试连接</button>' +
+        '<button class="btn" data-act="save-gh">保存配置</button>' +
+      '</div>' +
+      '<div class="win-note" style="color:#c92a2a;">如果点测试连接提示“网络不通”，说明你当前的网络环境被屏蔽了 GitHub API，请使用手机热点或开启代理工具。</div></div></div>');
   }
 
   function bootLoad() {
@@ -1039,6 +1065,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     }
     if (act === 'login') { doLogin(); return; }
     
+    if (act === 'test-gh') { testGHConnection(); return; }
+
     if (act === 'save-auth') {
       var nu = ($('newAuthUser') || {}).value || '';
       var np = ($('newAuthPass') || {}).value || '';
