@@ -35,7 +35,7 @@
   --font-px:"Press Start 2P",var(--font-cn);
 }
 
-/* ===== 强制隐藏 Netlify 悬浮球 ===== */
+/* ===== 强制隐藏 Netlify 悬浮球（备用） ===== */
 iframe[src*="netlify"], netlify-badge, #netlify-badge, div[style*="netlify"], a[href*="netlify.com"], [data-netlify-badge] {
   display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; z-index: -9999 !important;
 }
@@ -492,10 +492,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     }
   }
   killNetlifyBadge();
-  if (window.MutationObserver) {
-    var observer = new MutationObserver(function(mutations) { for (var i = 0; i < mutations.length; i++) { if (mutations[i].addedNodes.length > 0) killNetlifyBadge(); } });
-    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
-  }
 
   /* ===== 账号密码（从云端读取，这里是兜底默认值） ===== */
   var currentAuth = { user: 'admin', pass: '123456' };
@@ -503,12 +499,16 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     return u === currentAuth.user && p === currentAuth.pass;
   }
 
-  /* ===== GitHub 云端同步配置 ===== */
+  /* ===== GitHub 云端同步配置（只在本地缓存，绝不写进云端文件） ===== */
   var GH = {
-    token: '', owner: '', repo: '', branch: 'main', path: 'menu.json',
+    token: '',
+    owner: '',
+    repo: '',
+    branch: 'main',
+    path: 'menu.json',
     set: function (t, o, r, b, p) {
       this.token = t; this.owner = o; this.repo = r; this.branch = b; this.path = p;
-      // 为了兼容，也存一份在本地缓存，如果云端挂了还有一手准备
+      // 只存本地，不存云端
       localStorage.setItem('px_gh_token', t); localStorage.setItem('px_gh_owner', o); localStorage.setItem('px_gh_repo', r); localStorage.setItem('px_gh_branch', b); localStorage.setItem('px_gh_path', p);
     },
     loadLocal: function() {
@@ -520,7 +520,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     },
     ready: function () { return !!(this.token && this.owner && this.repo); }
   };
-  GH.loadLocal(); // 启动时先读本地的兜底
+  GH.loadLocal(); // 启动时读取本地缓存
 
   /* ===== 像素图标 ===== */
   var AVATAR = ['....WWWWWWWW....','...WWWWWWWWWW...','..WWWWWWWWWWWW..','..WWWWWWWWWWWW..','..wwwwwwwwwwww..','..HHHHHHHHHHHH..','..HHHHHHHHHHHH..','..HHHHHHHHHHHH..','..HHSSSSSSSSHH..','..HSSBBBBBBSSH..','..HSBBSSSSBBSH..','..HSSSSSSSSSSH..','...SSSSMMSSSS...','....NNNNNNNN....','...WWWWWWWWWW...','..WWWWWWWWWWWW..'];
@@ -555,7 +555,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   /* ===== 彻底清空默认菜单，防止首屏闪烁 ===== */
   var DEFAULT_DB = {
     auth: { user: 'admin', pass: '123456' },
-    gh: {},
     cats: [],
     dishes: []
   };
@@ -653,19 +652,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     renderSidebar(); renderGrid(); renderBar(); 
   }
 
-  /* ===== 已选菜品本地记忆 ===== */
-  function savePicked() {
-    try { localStorage.setItem('px_picked', JSON.stringify(Array.from(picked))); } catch(e){}
-  }
-  function loadPicked() {
-    try {
-      var raw = localStorage.getItem('px_picked');
-      if (raw) {
-        var arr = JSON.parse(raw);
-        if (Array.isArray(arr)) picked = new Set(arr);
-      }
-    } catch(e){}
-  }
+  function savePicked() { try { localStorage.setItem('px_picked', JSON.stringify(Array.from(picked))); } catch(e){} }
+  function loadPicked() { try { var raw = localStorage.getItem('px_picked'); if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) picked = new Set(arr); } } catch(e){} }
 
   /* ===== 弹层工具 ===== */
   var xSVG = '<svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M2 2h2v2H2zM4 4h2v2H4zM6 6h2v2H6zM8 8h2v2H8zM8 2h2v2H8zM6 4h2v2H6zM4 6h2v2H4zM2 8h2v2H2z"/></svg>';
@@ -708,7 +696,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       '<div class="win-note">截个图发群里，今天就不用再吵了</div></div></div>';
   }
 
-  /* ===== 认证 ===== */
   function openAuth() {
     openLayer('<div class="pxwin dlg auth" role="dialog" aria-modal="true" aria-label="管理员验证">' +
       '<div class="win-bar"><div><div class="win-title">ADMIN LOGIN</div><div class="win-sub">管理员验证</div></div>' +
@@ -730,7 +717,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     }
   }
 
-  /* ===== 修改密码弹窗 ===== */
   function openAuthEdit() {
     openLayer('<div class="pxwin dlg" role="dialog" aria-modal="true" aria-label="修改管理员账号密码">' +
       '<div class="win-bar"><div><div class="win-title">EDIT AUTH</div><div class="win-sub">修改管理员账号密码</div></div>' +
@@ -743,7 +729,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     setTimeout(function () { var u = $('newAuthUser'); if (u) u.focus(); }, 60);
   }
 
-  /* ===== 已选弹窗 ===== */
   function pickNoteText() { var n = picked.size; return pickMode === 'picked' ? (n ? '已选 ' + n + ' 道 · 点右侧 × 可以拿掉' : '还没有选菜，点下面按钮去加') : '点菜品即可加入或取消 · 当前已选 ' + n + ' 道'; }
   function pickLayerHTML() {
     var body, leftBtn;
@@ -779,7 +764,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   }
   function updatePickNote() { var n = $('pickNote'); if (n) n.textContent = pickNoteText(); }
 
-  /* ===== 编辑页 ===== */
   function markDirty() { dirty = true; dirtyFlag.dataset.on = '1'; dirtyFlag.textContent = '未保存改动'; }
   function renderEdit() {
     if (!draft) return;
@@ -915,10 +899,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     var fallback = draft.cats[0] ? draft.cats[0].id : '';
     draft.dishes.forEach(function (d) { if (!draft.cats.some(function (c) { return c.id === d.cat; })) d.cat = fallback; });
 
-    // 将最新的账号密码、GitHub 配置合并到数据中
     db = clone(draft); 
-    db.auth = clone(currentAuth);
-    db.gh = { token: GH.token, owner: GH.owner, repo: GH.repo, branch: GH.branch, path: GH.path };
+    db.auth = clone(currentAuth); // 只保存密码到云端
     
     dirty = false; renderEdit(); refreshMenu();
     
@@ -930,8 +912,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     dirtyFlag.textContent = '正在同步到云端...'; dirtyFlag.dataset.on = '1';
 
     saveToGitHub(db).then(function () {
-      dirtyFlag.textContent = '已同步，稍等 1 分钟生效'; dirtyFlag.dataset.on = '0';
-      toast('已同步，Netlify 需要几十秒重新部署');
+      dirtyFlag.textContent = '已同步'; dirtyFlag.dataset.on = '0';
+      toast('已同步到 GitHub，刷新即可生效');
     }).catch(function (err) {
       dirtyFlag.textContent = '云端同步失败'; dirtyFlag.dataset.on = '1';
       openSyncSettings('同步失败：' + (err.message || '请检查配置'));
@@ -955,8 +937,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       '<div class="field"><label>仓库名</label><input class="inp" id="ghRepo" value="' + esc(GH.repo) + '" placeholder="pixel-diner" autocomplete="off"></div>' +
       '<div class="field"><label>分支</label><input class="inp" id="ghBranch" value="' + esc(GH.branch) + '" placeholder="main" autocomplete="off"></div>' +
       '<div class="field"><label>数据文件路径</label><input class="inp" id="ghPath" value="' + esc(GH.path) + '" placeholder="menu.json" autocomplete="off"></div>' +
-      '<div class="dlg-actions"><button class="btn ghost" data-act="close">取消</button><button class="btn" data-act="save-gh">保存并同步</button></div>' +
-      '<div class="win-note" style="color:#c92a2a;">警告：Token 将随菜单一起保存在公开文件中。请确保该 Token 仅有本仓库的 Contents 读写权限。</div></div></div>');
+      '<div class="dlg-actions"><button class="btn ghost" data-act="close">取消</button><button class="btn" data-act="save-gh">保存</button></div>' +
+      '<div class="win-note" style="color:#c92a2a;">Token 只保存在当前浏览器中，不会随菜单保存到 GitHub，绝对安全。</div></div></div>');
   }
 
   function bootLoad() {
@@ -966,10 +948,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
         if (data && isPlainDB(data)) { 
           db = data; 
           if (data.auth && data.auth.user) currentAuth = data.auth;
-          if (data.gh && data.gh.token) {
-            // 如果云端存在完整配置，优先使用云端配置覆盖本地
-            GH.set(data.gh.token, data.gh.owner, data.gh.repo, data.gh.branch, data.gh.path);
-          }
         }
       })
       .catch(function () {})
@@ -1048,9 +1026,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       var np = ($('newAuthPass') || {}).value || '';
       if (!nu.trim() || !np.trim()) { toast('账号和密码不能为空'); return; }
       currentAuth = { user: nu.trim(), pass: np.trim() };
-      markDirty(); // 标记为未保存
-      closeLayer();
-      toast('账号密码已修改，请点右上角保存');
+      markDirty(); closeLayer(); toast('账号密码已修改，请点右上角保存');
       return;
     }
 
@@ -1058,9 +1034,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       var t = ($('ghToken') || {}).value || '', o = ($('ghOwner') || {}).value || '', rp = ($('ghRepo') || {}).value || '', br = ($('ghBranch') || {}).value || 'main', pt = ($('ghPath') || {}).value || 'menu.json';
       if (!t.trim() || !o.trim() || !rp.trim()) { toast('Token、用户名、仓库名都要填'); return; }
       GH.set(t.trim(), o.trim(), rp.trim(), br.trim(), pt.trim()); 
-      markDirty();
       closeLayer(); 
-      toast('配置已修改，请点右上角保存');
+      toast('配置已保存在本地，下次保存菜单时生效');
       return;
     }
     if (act === 'done') { closeLayer(); return; }
