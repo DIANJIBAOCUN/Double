@@ -64,5 +64,9 @@
       "tpl": "plate",
       "pal": "tomato"
     }
-  ]
+  ],
+  "auth": {
+    "user": "double",
+    "pass": "doubl12"
+  }
 }
