@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>像素食堂 · 今日菜单</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23eef4ff'/></svg>">
 <meta name="theme-color" content="#eef1f9">
@@ -784,24 +787,20 @@ select.inp{
 (function () {
   'use strict';
 
-  /* ===== 强行清理 Netlify 右下角悬浮球（MutationObserver 监听） ===== */
+  /* ===== 强行清理 Netlify 右下角悬浮球 ===== */
   function killNetlifyBadge() {
-    // 尝试通过 ID 或特定属性查找
     var badge = document.getElementById('netlify-badge') || 
                 document.querySelector('iframe[src*="netlify"]') ||
                 document.querySelector('a[href*="netlify.com"]') ||
                 document.querySelector('[data-netlify-badge]');
     
     if (badge) {
-      // 如果它在一个独立的容器里（通常是 div 或 aside），把容器也删了
       if (badge.parentNode && (badge.parentNode.tagName === 'DIV' || badge.parentNode.tagName === 'ASIDE') && badge.parentNode.children.length === 1) {
         badge.parentNode.remove();
       } else {
         badge.remove();
       }
     }
-
-    // 兜底：遍历所有 a 标签
     var links = document.querySelectorAll('a');
     for (var i = 0; i < links.length; i++) {
       if (links[i].innerText.indexOf('Netlify') !== -1 || (links[i].href && links[i].href.indexOf('netlify.com') !== -1)) {
@@ -813,26 +812,18 @@ select.inp{
       }
     }
   }
-
-  // 页面加载时先执行一次
   killNetlifyBadge();
-
-  // 使用 MutationObserver 实时监控 DOM 变化，一旦发现悬浮球注入立刻删除
   if (window.MutationObserver) {
     var observer = new MutationObserver(function(mutations) {
       for (var i = 0; i < mutations.length; i++) {
-        if (mutations[i].addedNodes.length > 0) {
-          killNetlifyBadge();
-        }
+        if (mutations[i].addedNodes.length > 0) killNetlifyBadge();
       }
     });
-    // 开始监听 body 下的所有节点变化
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   }
 
-
   /* ===== 管理员账号 ===== */
-  var AUTH = { user: 'double', pass: 'doul12' };
+  var AUTH = { user: 'double', pass: 'doubl12' };
 
   /* ===== GitHub 云端同步配置 ===== */
   var GH = {
@@ -1500,9 +1491,9 @@ select.inp{
 
     saveToGitHub(db)
       .then(function () {
-        dirtyFlag.textContent = '已同步，稍后自动生效';
+        dirtyFlag.textContent = '已同步，稍等 1 分钟生效';
         dirtyFlag.dataset.on = '0';
-        toast('已同步到云端，几十秒后自动生效');
+        toast('已同步，Netlify 需要几十秒重新部署');
       })
       .catch(function (err) {
         dirtyFlag.textContent = '云端同步失败';
@@ -1547,34 +1538,24 @@ select.inp{
     );
   }
 
-  /* ===== 加载云端数据 ===== */
+  /* ===== 加载云端数据（无需 Token，所有人自动读取最新） ===== */
   function bootLoad() {
-    if (!GH.ready()) return;
-    var apiBase = 'https://api.github.com/repos/' +
-      encodeURIComponent(GH.owner) + '/' + encodeURIComponent(GH.repo) +
-      '/contents/' + encodeURIComponent(GH.path).replace(/%2F/g, '/');
-    fetch(apiBase + '?ref=' + encodeURIComponent(GH.branch) + '&t=' + Date.now(), {
-      headers: {
-        'Authorization': 'Bearer ' + GH.token,
-        'Accept': 'application/vnd.github+json'
-      },
-      cache: 'no-store'
-    })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (file) {
-        if (!file || !file.content) return;
-        var raw = atob(file.content.replace(/\s/g, ''));
-        try {
-          raw = decodeURIComponent(escape(raw));
-        } catch (e) {}
-        var data = JSON.parse(raw);
-        if (isPlainDB(data)) {
+    // 直接请求 Netlify 构建好的 menu.json，并加上时间戳防止浏览器缓存
+    fetch('./menu.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { 
+        if (r.ok) return r.json(); 
+        return null; 
+      })
+      .then(function (data) {
+        if (data && isPlainDB(data)) {
           db = data;
           dbLoaded = true;
           refreshMenu();
         }
       })
-      .catch(function () {});
+      .catch(function () {
+        // 如果找不到 menu.json（比如本地打开或还没保存过），就保留默认菜单
+      });
   }
 
   /* ===== 视图切换 ===== */
@@ -1707,9 +1688,9 @@ select.inp{
       dirtyFlag.dataset.on = '1';
       saveToGitHub(db)
         .then(function () {
-          dirtyFlag.textContent = '已同步，稍后自动生效';
+          dirtyFlag.textContent = '已同步，稍等 1 分钟生效';
           dirtyFlag.dataset.on = '0';
-          toast('已同步到云端');
+          toast('已同步，Netlify 需要几十秒重新部署');
         })
         .catch(function (err) {
           dirtyFlag.textContent = '云端同步失败';
