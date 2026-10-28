@@ -499,6 +499,11 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     return u === currentAuth.user && p === currentAuth.pass;
   }
 
+  /* ===== 清理非法字符工具 ===== */
+  function cleanStr(s) {
+    return String(s == null ? '' : s).replace(/[^\x00-\x7F]/g, '').trim();
+  }
+
   /* ===== GitHub 云端同步配置（只在本地缓存，绝不写进云端文件） ===== */
   var GH = {
     token: '',
@@ -507,9 +512,17 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     branch: 'main',
     path: 'menu.json',
     set: function (t, o, r, b, p) {
-      this.token = t; this.owner = o; this.repo = r; this.branch = b; this.path = p;
+      this.token = cleanStr(t); 
+      this.owner = cleanStr(o); 
+      this.repo = cleanStr(r); 
+      this.branch = cleanStr(b) || 'main'; 
+      this.path = cleanStr(p) || 'menu.json';
       // 只存本地，不存云端
-      localStorage.setItem('px_gh_token', t); localStorage.setItem('px_gh_owner', o); localStorage.setItem('px_gh_repo', r); localStorage.setItem('px_gh_branch', b); localStorage.setItem('px_gh_path', p);
+      localStorage.setItem('px_gh_token', this.token); 
+      localStorage.setItem('px_gh_owner', this.owner); 
+      localStorage.setItem('px_gh_repo', this.repo); 
+      localStorage.setItem('px_gh_branch', this.branch); 
+      localStorage.setItem('px_gh_path', this.path);
     },
     loadLocal: function() {
       this.token = localStorage.getItem('px_gh_token') || '';
