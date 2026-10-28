@@ -410,10 +410,15 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       <div class="content">
         <div class="meta-row">
           <span>当前 <b id="metaCount">0</b> 道菜</span>
-          <span id="metaHint">点卡片选菜</span>
+          <span id="metaHint">正在加载...</span>
         </div>
         <div class="scroll" id="menuScroll">
-          <div class="grid" id="grid"></div>
+          <!-- 初始状态为加载中，防止闪烁 -->
+          <div class="grid" id="grid">
+            <div class="empty" style="border:none;background:transparent;">
+              <b>LOADING</b>正在获取最新菜单...
+            </div>
+          </div>
           <div class="empty" id="emptyState" hidden>
             <b>NO MATCH</b>没有找到这道菜<br>换个关键词，或切到「全部」
           </div>
@@ -491,9 +496,9 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   }
 
-   /* ===== 管理员账号 ===== */
+  /* ===== 管理员账号（直接改这里即可） ===== */
   function checkPass(u, p) {
-    return u === 'double' && p === 'doule12';
+    return u === 'admin' && p === '123456';
   }
 
   /* ===== GitHub 云端同步配置 ===== */
@@ -539,22 +544,10 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   var WEEK = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
   var YI = ['好好吃饭','慢慢吃，别赶','多夹一筷子青菜','今天适合来碗热汤','热乎的最治愈','吃完记得喝水'];
 
+  /* ===== 彻底清空默认菜单，防止首屏闪烁 ===== */
   var DEFAULT_DB = {
-    cats: [{ id:'c1', name:'招牌推荐' },{ id:'c2', name:'面食汤类' },{ id:'c3', name:'小炒热菜' },{ id:'c4', name:'烧烤小吃' },{ id:'c5', name:'饮品甜点' },{ id:'c6', name:'主食' }],
-    dishes: [
-      { id:'d1', name:'招牌牛腩面', cat:'c1', tags:['招牌','汤浓'], tpl:'bowl', pal:'gold' },
-      { id:'d2', name:'秘制卤肉饭', cat:'c1', tags:['招牌','下饭'], tpl:'bowl', pal:'tomato' },
-      { id:'d5', name:'番茄鸡蛋面', cat:'c2', tags:['家常','热乎'], tpl:'bowl', pal:'tomato' },
-      { id:'d6', name:'酸辣粉',     cat:'c2', tags:['辣','重口'], tpl:'bowl', pal:'tomato' },
-      { id:'d9', name:'宫保鸡丁',   cat:'c3', tags:['辣','下饭'], tpl:'plate', pal:'tomato' },
-      { id:'d10',name:'蒜蓉西兰花', cat:'c3', tags:['素食','清淡'], tpl:'plate', pal:'mint' },
-      { id:'d14',name:'炭烤鸡翅',   cat:'c4', tags:['辣','必点'], tpl:'skewer', pal:'tomato' },
-      { id:'d15',name:'蒜香烤茄子', cat:'c4', tags:['素食'], tpl:'skewer', pal:'plum' },
-      { id:'d18',name:'冰镇酸梅汤', cat:'c5', tags:['冰','解腻'], tpl:'cup', pal:'plum' },
-      { id:'d21',name:'芋泥蛋糕',   cat:'c5', tags:['甜','新品'], tpl:'cake', pal:'plum' },
-      { id:'d23',name:'白米饭',     cat:'c6', tags:['清淡'], tpl:'bowl', pal:'cream' },
-      { id:'d24',name:'三文鱼饭团', cat:'c6', tags:['鲜'], tpl:'rice', pal:'tomato' }
-    ]
+    cats: [],
+    dishes: []
   };
 
   var db = clone(DEFAULT_DB);
@@ -642,7 +635,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   }
   
   function refreshMenu() { 
-    // 清理已被删除但还在已选里的菜品
     var validIds = new Set(db.dishes.map(function(d){ return d.id; }));
     picked.forEach(function(id) {
       if (!validIds.has(id)) picked.delete(id);
@@ -783,14 +775,14 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   var chevSVG = '<svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M3 4h2v2H3zM5 6h2v2H5zM7 6h2v2H7zM9 4h2v2H9z"/></svg>';
 
   function renderCats() {
-    paneCats.innerHTML = '<div class="e-list">' + draft.cats.map(function (c, i) {
+    paneCats.innerHTML = '<div class="e-list">' + (draft.cats.map(function (c, i) {
       var n = draft.dishes.filter(function (d) { return d.cat === c.id; }).length;
       return '<div class="e-row"><span class="e-idx">' + String(i + 1).padStart(2, '0') + '</span>' +
         '<div class="e-cat-main"><input class="inp" data-req="catname" data-id="' + c.id + '" value="' + esc(c.name) + '" maxlength="12" aria-label="分类名称"><span class="cat-count">' + n + ' 道菜</span></div>' +
         '<button class="mini" data-act="cat-up" data-id="' + c.id + '" aria-label="上移"' + (i === 0 ? ' disabled' : '') + '>' + upSVG + '</button>' +
         '<button class="mini" data-act="cat-down" data-id="' + c.id + '" aria-label="下移"' + (i === draft.cats.length - 1 ? ' disabled' : '') + '>' + downSVG + '</button>' +
         '<button class="mini danger" data-act="cat-del" data-id="' + c.id + '" aria-label="删除分类">' + trashSVG + '</button></div>';
-    }).join('') + '</div>' +
+    }).join('') || '<div class="empty"><b>NO CATEGORY</b>还没有分类，先在下面添加一个</div>') + '</div>' +
     '<div class="e-add"><input class="inp" id="newCatName" placeholder="新分类名，如：汤品" maxlength="12" aria-label="新分类名称"><button class="btn" data-act="cat-add">添加</button></div>' +
     '<div class="edit-skip" style="padding:12px 0 0">共 ' + draft.cats.length + ' 个分类，顺序决定点菜页的排列。</div>';
   }
@@ -948,6 +940,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       .finally(function() {
         loadPicked();
         refreshMenu();
+        metaHint.textContent = '点卡片选菜'; // 加载完成后再改提示词
       });
   }
 
