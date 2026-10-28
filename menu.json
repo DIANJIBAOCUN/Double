@@ -13,13 +13,40 @@
       "name": "素菜"
     },
     {
-      "id": "c4",
-      "name": "汤谱"
+      "id": "c5",
+      "name": "面食"
     },
     {
-      "id": "c5",
-      "name": "饮品甜点"
+      "id": "c4",
+      "name": "汤谱"
     }
   ],
-  "dishes": []
+  "dishes": [
+    {
+      "id": "dmvrs893v",
+      "name": "米饭",
+      "cat": "c6",
+      "tags": [],
+      "tpl": "rice",
+      "pal": "cream"
+    },
+    {
+      "id": "dmvrs8i23",
+      "name": "荷兰豆炒肉（五花肉/梅花肉）",
+      "cat": "c6",
+      "tags": [],
+      "tpl": "plate",
+      "pal": "mint"
+    },
+    {
+      "id": "dmvrs92xu",
+      "name": "盐葱梅花肉",
+      "cat": "c6",
+      "tags": [
+        "上火"
+      ],
+      "tpl": "plate",
+      "pal": "tomato"
+    }
+  ]
 }
