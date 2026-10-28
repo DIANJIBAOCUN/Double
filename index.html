@@ -463,7 +463,8 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     <div class="edit-foot">
       <div class="foot-tip">保存后会自动同步到云端，稍等片刻即可生效。</div>
       <div class="dirty" id="dirtyFlag">改动已保存</div>
-      <button class="btn ghost" id="btnEditAuth" style="margin-top: 8px; font-size: 12px; min-height: 32px;">修改管理员账号 / 密码</button>
+      <button class="btn ghost" id="btnEditAuth" style="margin-top: 8px; font-size: 12px; min-height: 32px; margin-bottom: 6px;">修改管理员账号 / 密码</button>
+      <button class="btn ghost" id="btnEditGH" style="font-size: 12px; min-height: 32px;">修改 GitHub 云端配置</button>
     </div>
   </section>
 </div>
@@ -504,16 +505,22 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 
   /* ===== GitHub 云端同步配置 ===== */
   var GH = {
-    get token() { return localStorage.getItem('px_gh_token') || ''; },
-    get owner() { return localStorage.getItem('px_gh_owner') || ''; },
-    get repo()  { return localStorage.getItem('px_gh_repo') || ''; },
-    get branch(){ return localStorage.getItem('px_gh_branch') || 'main'; },
-    get path()  { return localStorage.getItem('px_gh_path') || 'menu.json'; },
+    token: '', owner: '', repo: '', branch: 'main', path: 'menu.json',
     set: function (t, o, r, b, p) {
+      this.token = t; this.owner = o; this.repo = r; this.branch = b; this.path = p;
+      // 为了兼容，也存一份在本地缓存，如果云端挂了还有一手准备
       localStorage.setItem('px_gh_token', t); localStorage.setItem('px_gh_owner', o); localStorage.setItem('px_gh_repo', r); localStorage.setItem('px_gh_branch', b); localStorage.setItem('px_gh_path', p);
+    },
+    loadLocal: function() {
+      this.token = localStorage.getItem('px_gh_token') || '';
+      this.owner = localStorage.getItem('px_gh_owner') || '';
+      this.repo  = localStorage.getItem('px_gh_repo') || '';
+      this.branch= localStorage.getItem('px_gh_branch') || 'main';
+      this.path  = localStorage.getItem('px_gh_path') || 'menu.json';
     },
     ready: function () { return !!(this.token && this.owner && this.repo); }
   };
+  GH.loadLocal(); // 启动时先读本地的兜底
 
   /* ===== 像素图标 ===== */
   var AVATAR = ['....WWWWWWWW....','...WWWWWWWWWW...','..WWWWWWWWWWWW..','..WWWWWWWWWWWW..','..wwwwwwwwwwww..','..HHHHHHHHHHHH..','..HHHHHHHHHHHH..','..HHHHHHHHHHHH..','..HHSSSSSSSSHH..','..HSSBBBBBBSSH..','..HSBBSSSSBBSH..','..HSSSSSSSSSSH..','...SSSSMMSSSS...','....NNNNNNNN....','...WWWWWWWWWW...','..WWWWWWWWWWWW..'];
@@ -548,6 +555,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   /* ===== 彻底清空默认菜单，防止首屏闪烁 ===== */
   var DEFAULT_DB = {
     auth: { user: 'admin', pass: '123456' },
+    gh: {},
     cats: [],
     dishes: []
   };
@@ -907,9 +915,11 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     var fallback = draft.cats[0] ? draft.cats[0].id : '';
     draft.dishes.forEach(function (d) { if (!draft.cats.some(function (c) { return c.id === d.cat; })) d.cat = fallback; });
 
-    // 将最新的账号密码合并到数据中
+    // 将最新的账号密码、GitHub 配置合并到数据中
     db = clone(draft); 
     db.auth = clone(currentAuth);
+    db.gh = { token: GH.token, owner: GH.owner, repo: GH.repo, branch: GH.branch, path: GH.path };
+    
     dirty = false; renderEdit(); refreshMenu();
     
     if (!GH.ready()) { openSyncSettings('首次保存需要配置 GitHub 云端同步'); return; }
@@ -946,7 +956,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       '<div class="field"><label>分支</label><input class="inp" id="ghBranch" value="' + esc(GH.branch) + '" placeholder="main" autocomplete="off"></div>' +
       '<div class="field"><label>数据文件路径</label><input class="inp" id="ghPath" value="' + esc(GH.path) + '" placeholder="menu.json" autocomplete="off"></div>' +
       '<div class="dlg-actions"><button class="btn ghost" data-act="close">取消</button><button class="btn" data-act="save-gh">保存并同步</button></div>' +
-      '<div class="win-note">Token 只保存在当前浏览器，不会上传到服务器。<br>建议使用 Fine-grained token，只给目标仓库 <b>Contents: Read and write</b> 权限。</div></div></div>');
+      '<div class="win-note" style="color:#c92a2a;">警告：Token 将随菜单一起保存在公开文件中。请确保该 Token 仅有本仓库的 Contents 读写权限。</div></div></div>');
   }
 
   function bootLoad() {
@@ -955,8 +965,10 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       .then(function (data) {
         if (data && isPlainDB(data)) { 
           db = data; 
-          if (data.auth && data.auth.user) {
-            currentAuth = data.auth;
+          if (data.auth && data.auth.user) currentAuth = data.auth;
+          if (data.gh && data.gh.token) {
+            // 如果云端存在完整配置，优先使用云端配置覆盖本地
+            GH.set(data.gh.token, data.gh.owner, data.gh.repo, data.gh.branch, data.gh.path);
           }
         }
       })
@@ -1018,6 +1030,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
   btnToday.addEventListener('click', function () { if (picked.size) openLayer(todayHTML()); });
   $('pickedOpen').addEventListener('click', function () { pickMode = 'picked'; openLayer(pickLayerHTML()); });
   $('btnEditAuth').addEventListener('click', openAuthEdit);
+  $('btnEditGH').addEventListener('click', function(){ openSyncSettings('修改云端同步配置'); });
 
   layer.addEventListener('click', function (e) {
     if (e.target === layer) { closeLayer(); return; }
@@ -1044,10 +1057,10 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     if (act === 'save-gh') {
       var t = ($('ghToken') || {}).value || '', o = ($('ghOwner') || {}).value || '', rp = ($('ghRepo') || {}).value || '', br = ($('ghBranch') || {}).value || 'main', pt = ($('ghPath') || {}).value || 'menu.json';
       if (!t.trim() || !o.trim() || !rp.trim()) { toast('Token、用户名、仓库名都要填'); return; }
-      GH.set(t.trim(), o.trim(), rp.trim(), br.trim(), pt.trim()); closeLayer(); toast('配置已保存，正在同步...');
-      dirtyFlag.textContent = '正在同步到云端...'; dirtyFlag.dataset.on = '1';
-      saveToGitHub(db).then(function () { dirtyFlag.textContent = '已同步，稍等 1 分钟生效'; dirtyFlag.dataset.on = '0'; toast('已同步，Netlify 需要几十秒重新部署'); })
-        .catch(function (err) { dirtyFlag.textContent = '云端同步失败'; dirtyFlag.dataset.on = '1'; openSyncSettings('同步失败：' + (err.message || '请检查配置')); });
+      GH.set(t.trim(), o.trim(), rp.trim(), br.trim(), pt.trim()); 
+      markDirty();
+      closeLayer(); 
+      toast('配置已修改，请点右上角保存');
       return;
     }
     if (act === 'done') { closeLayer(); return; }
