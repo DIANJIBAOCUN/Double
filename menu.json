@@ -18,7 +18,7 @@
     },
     {
       "id": "c4",
-      "name": "汤谱"
+      "name": "汤/饮"
     }
   ],
   "dishes": [
@@ -33,7 +33,7 @@
     {
       "id": "dmvrs8i23",
       "name": "荷兰豆炒肉（五花肉/梅花肉）",
-      "cat": "c6",
+      "cat": "c1",
       "tags": [],
       "tpl": "plate",
       "pal": "mint"
@@ -41,10 +41,26 @@
     {
       "id": "dmvrs92xu",
       "name": "盐葱梅花肉",
-      "cat": "c6",
+      "cat": "c1",
       "tags": [
         "上火"
       ],
+      "tpl": "plate",
+      "pal": "tomato"
+    },
+    {
+      "id": "dmvrsb9si",
+      "name": "小葱炒蛋",
+      "cat": "c3",
+      "tags": [],
+      "tpl": "plate",
+      "pal": "gold"
+    },
+    {
+      "id": "dmvrsbp5e",
+      "name": "白萝卜炒牛肉",
+      "cat": "c1",
+      "tags": [],
       "tpl": "plate",
       "pal": "tomato"
     }
