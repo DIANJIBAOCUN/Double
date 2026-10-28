@@ -413,7 +413,6 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
           <span id="metaHint">正在加载...</span>
         </div>
         <div class="scroll" id="menuScroll">
-          <!-- 初始状态为加载中，防止闪烁 -->
           <div class="grid" id="grid">
             <div class="empty" style="border:none;background:transparent;">
               <b>LOADING</b>正在获取最新菜单...
@@ -464,6 +463,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     <div class="edit-foot">
       <div class="foot-tip">保存后会自动同步到云端，稍等片刻即可生效。</div>
       <div class="dirty" id="dirtyFlag">改动已保存</div>
+      <button class="btn ghost" id="btnEditAuth" style="margin-top: 8px; font-size: 12px; min-height: 32px;">修改管理员账号 / 密码</button>
     </div>
   </section>
 </div>
@@ -496,9 +496,10 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   }
 
-  /* ===== 管理员账号（直接改这里即可） ===== */
+  /* ===== 账号密码（从云端读取，这里是兜底默认值） ===== */
+  var currentAuth = { user: 'admin', pass: '123456' };
   function checkPass(u, p) {
-    return u === 'admin' && p === '123456';
+    return u === currentAuth.user && p === currentAuth.pass;
   }
 
   /* ===== GitHub 云端同步配置 ===== */
@@ -546,6 +547,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 
   /* ===== 彻底清空默认菜单，防止首屏闪烁 ===== */
   var DEFAULT_DB = {
+    auth: { user: 'admin', pass: '123456' },
     cats: [],
     dishes: []
   };
@@ -720,6 +722,19 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     }
   }
 
+  /* ===== 修改密码弹窗 ===== */
+  function openAuthEdit() {
+    openLayer('<div class="pxwin dlg" role="dialog" aria-modal="true" aria-label="修改管理员账号密码">' +
+      '<div class="win-bar"><div><div class="win-title">EDIT AUTH</div><div class="win-sub">修改管理员账号密码</div></div>' +
+      '<button class="win-x" data-act="close" aria-label="关闭">' + xSVG + '</button></div>' +
+      '<div class="dlg-body">' +
+      '<div class="field"><label>新账号</label><input class="inp" id="newAuthUser" autocomplete="off" value="' + esc(currentAuth.user) + '"></div>' +
+      '<div class="field"><label>新密码</label><input class="inp" id="newAuthPass" type="text" autocomplete="off" value="' + esc(currentAuth.pass) + '"></div>' +
+      '<div class="dlg-actions"><button class="btn ghost" data-act="close">取消</button><button class="btn" data-act="save-auth">确认修改</button></div>' +
+      '<div class="win-note" style="color:#c92a2a;">修改后请务必点击右上角的「保存」，否则重启后失效。</div></div></div>');
+    setTimeout(function () { var u = $('newAuthUser'); if (u) u.focus(); }, 60);
+  }
+
   /* ===== 已选弹窗 ===== */
   function pickNoteText() { var n = picked.size; return pickMode === 'picked' ? (n ? '已选 ' + n + ' 道 · 点右侧 × 可以拿掉' : '还没有选菜，点下面按钮去加') : '点菜品即可加入或取消 · 当前已选 ' + n + ' 道'; }
   function pickLayerHTML() {
@@ -892,7 +907,11 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     var fallback = draft.cats[0] ? draft.cats[0].id : '';
     draft.dishes.forEach(function (d) { if (!draft.cats.some(function (c) { return c.id === d.cat; })) d.cat = fallback; });
 
-    db = clone(draft); dirty = false; renderEdit(); refreshMenu();
+    // 将最新的账号密码合并到数据中
+    db = clone(draft); 
+    db.auth = clone(currentAuth);
+    dirty = false; renderEdit(); refreshMenu();
+    
     if (!GH.ready()) { openSyncSettings('首次保存需要配置 GitHub 云端同步'); return; }
 
     isSaving = true;
@@ -934,13 +953,18 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
     fetch('./menu.json?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (data && isPlainDB(data)) { db = data; }
+        if (data && isPlainDB(data)) { 
+          db = data; 
+          if (data.auth && data.auth.user) {
+            currentAuth = data.auth;
+          }
+        }
       })
       .catch(function () {})
       .finally(function() {
         loadPicked();
         refreshMenu();
-        metaHint.textContent = '点卡片选菜'; // 加载完成后再改提示词
+        metaHint.textContent = '点卡片选菜'; 
       });
   }
 
@@ -993,6 +1017,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 
   btnToday.addEventListener('click', function () { if (picked.size) openLayer(todayHTML()); });
   $('pickedOpen').addEventListener('click', function () { pickMode = 'picked'; openLayer(pickLayerHTML()); });
+  $('btnEditAuth').addEventListener('click', openAuthEdit);
 
   layer.addEventListener('click', function (e) {
     if (e.target === layer) { closeLayer(); return; }
@@ -1004,6 +1029,18 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
       var r = confirmResolve; confirmResolve = null; layer.classList.remove('on'); layer.innerHTML = ''; document.body.classList.remove('lock'); if (r) r(act === 'confirm'); return;
     }
     if (act === 'login') { doLogin(); return; }
+    
+    if (act === 'save-auth') {
+      var nu = ($('newAuthUser') || {}).value || '';
+      var np = ($('newAuthPass') || {}).value || '';
+      if (!nu.trim() || !np.trim()) { toast('账号和密码不能为空'); return; }
+      currentAuth = { user: nu.trim(), pass: np.trim() };
+      markDirty(); // 标记为未保存
+      closeLayer();
+      toast('账号密码已修改，请点右上角保存');
+      return;
+    }
+
     if (act === 'save-gh') {
       var t = ($('ghToken') || {}).value || '', o = ($('ghOwner') || {}).value || '', rp = ($('ghRepo') || {}).value || '', br = ($('ghBranch') || {}).value || 'main', pt = ($('ghPath') || {}).value || 'menu.json';
       if (!t.trim() || !o.trim() || !rp.trim()) { toast('Token、用户名、仓库名都要填'); return; }
